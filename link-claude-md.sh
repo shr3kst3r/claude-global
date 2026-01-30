@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 #
-# link-claude-md.sh - Manage global Claude configuration symlinks
+# link-claude-md.sh - Install global Claude configuration via symlinks
 #
-# Commands:
-#   link [target-dir]   Symlink CLAUDE.md into a project directory
-#   install             Install skills/ and docs/ into ~/.claude/
+# Symlinks CLAUDE.md, skills/, and docs/ into ~/.claude/
 #
 # Run with --help for full usage information.
 #
@@ -96,7 +94,7 @@ create_symlink() {
         log_info "[DRY-RUN] Would create: $target -> $source"
     else
         ln -s "$source" "$target"
-        log_success "$source_name: linked $target -> $source"
+        log_success "$source_name: linked"
     fi
 
     return 0
@@ -104,95 +102,59 @@ create_symlink() {
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") <command> [options]
+Usage: $(basename "$0") [options]
 
-Manage global Claude configuration symlinks.
+Install global Claude configuration by symlinking this repo's files into ~/.claude/:
 
-Commands:
-    link [target-dir]   Symlink CLAUDE.md into a project directory
-                        (default: current directory)
-
-    install             Install skills/ and docs/ into ~/.claude/
-                        Creates ~/.claude/ if it doesn't exist
+    CLAUDE.md  ->  ~/.claude/CLAUDE.md
+    skills/    ->  ~/.claude/skills
+    docs/      ->  ~/.claude/docs
 
 Options:
-    -h, --help          Show this help message
-    -f, --force         Overwrite existing files (backs up first)
-    -n, --dry-run       Show what would be done without making changes
+    -h, --help      Show this help message
+    -f, --force     Overwrite existing files (backs up first)
+    -n, --dry-run   Show what would be done without making changes
 
 Examples:
-    $(basename "$0") link                     # Link CLAUDE.md in current directory
-    $(basename "$0") link ~/projects/myapp    # Link CLAUDE.md in specific project
-    $(basename "$0") install                  # Install skills and docs to ~/.claude/
-    $(basename "$0") install -f               # Force reinstall (backup existing)
-    $(basename "$0") install -n               # Preview install
+    $(basename "$0")           # Install configuration
+    $(basename "$0") -n        # Preview what would be installed
+    $(basename "$0") -f        # Force reinstall (backup existing)
 
 Environment:
-    CLAUDE_HOME         Override default ~/.claude location
+    CLAUDE_HOME    Override default ~/.claude location (default: ~/.claude)
 EOF
 }
 
-cmd_link() {
+main() {
     local force=false
     local dry_run=false
-    local target_dir=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -f|--force)  force=true; shift ;;
-            -n|--dry-run) dry_run=true; shift ;;
-            -*)          die "Unknown option: $1" ;;
-            *)
-                if [[ -z "$target_dir" ]]; then
-                    target_dir="$1"
-                else
-                    die "Too many arguments"
-                fi
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -f|--force)
+                force=true
                 shift
+                ;;
+            -n|--dry-run)
+                dry_run=true
+                shift
+                ;;
+            -*)
+                die "Unknown option: $1"
+                ;;
+            *)
+                die "Unexpected argument: $1"
                 ;;
         esac
     done
 
-    target_dir="${target_dir:-$(pwd)}"
-
-    # Resolve to absolute path
-    if ! target_dir="$(CDPATH= cd -- "$target_dir" 2>/dev/null && pwd -P)"; then
-        die "Target directory does not exist: $target_dir"
-    fi
-
-    local target_file="${target_dir}/CLAUDE.md"
-
-    [[ -f "$GLOBAL_CLAUDE_MD" ]] || die "Global CLAUDE.md not found at: $GLOBAL_CLAUDE_MD"
-
-    if [[ "$target_dir" == "$SCRIPT_DIR" ]]; then
-        die "Cannot link CLAUDE.md to itself"
-    fi
-
-    log_info "Linking CLAUDE.md to project: $target_dir"
-
-    if create_symlink "$GLOBAL_CLAUDE_MD" "$target_file" "$force" "$dry_run"; then
-        if [[ "$dry_run" == false ]]; then
-            log_success "Done"
-        fi
-    else
-        exit 1
-    fi
-}
-
-cmd_install() {
-    local force=false
-    local dry_run=false
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -f|--force)   force=true; shift ;;
-            -n|--dry-run) dry_run=true; shift ;;
-            -*)           die "Unknown option: $1" ;;
-            *)            die "Unexpected argument: $1" ;;
-        esac
-    done
-
     log_info "Installing global Claude configuration to: $CLAUDE_HOME"
+    log_info "Source: $SCRIPT_DIR"
+    echo ""
 
     # Ensure ~/.claude exists
     if [[ ! -d "$CLAUDE_HOME" ]]; then
@@ -205,6 +167,15 @@ cmd_install() {
     fi
 
     local failed=0
+
+    # Link CLAUDE.md
+    if [[ -f "$GLOBAL_CLAUDE_MD" ]]; then
+        if ! create_symlink "$GLOBAL_CLAUDE_MD" "${CLAUDE_HOME}/CLAUDE.md" "$force" "$dry_run"; then
+            ((failed++)) || true
+        fi
+    else
+        log_warn "CLAUDE.md not found: $GLOBAL_CLAUDE_MD"
+    fi
 
     # Link skills directory
     if [[ -d "$GLOBAL_SKILLS_DIR" ]]; then
@@ -231,37 +202,7 @@ cmd_install() {
     if [[ "$dry_run" == false ]]; then
         echo ""
         log_success "Installation complete"
-        log_info "Skills: ${CLAUDE_HOME}/skills -> ${GLOBAL_SKILLS_DIR}"
-        log_info "Docs:   ${CLAUDE_HOME}/docs -> ${GLOBAL_DOCS_DIR}"
     fi
-}
-
-main() {
-    if [[ $# -eq 0 ]]; then
-        usage
-        exit 1
-    fi
-
-    case "$1" in
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        link)
-            shift
-            cmd_link "$@"
-            ;;
-        install)
-            shift
-            cmd_install "$@"
-            ;;
-        -*)
-            die "Unknown option: $1. Use --help for usage."
-            ;;
-        *)
-            die "Unknown command: $1. Use --help for usage."
-            ;;
-    esac
 }
 
 main "$@"

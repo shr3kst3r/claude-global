@@ -5,7 +5,7 @@
 # Displays: directory, git info, model, tokens, cost, usage limits
 # Receives JSON on stdin from Claude Code.
 #
-# Install: ./link-statusline.sh
+# Install: ./install-statusline.sh
 # Test:    echo '{}' | ./statusline/statusline.sh
 #
 

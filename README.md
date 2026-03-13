@@ -1,48 +1,48 @@
 # Claude Global Configuration
 
-My global Claude Code configuration, installed via symlinks to `~/.claude/`.
+My global Claude Code configuration, installed by copying into `~/.claude/`.
 
 ## Structure
 
 ```
-├── CLAUDE.md          # Global instructions and preferences
-├── docs/              # Documentation and reference files
-├── skills/            # Custom Claude Code skills
+├── CLAUDE.md             # Global instructions and preferences
+├── docs/                 # Documentation and reference files
+├── skills/               # Custom Claude Code skills
 │   ├── knowledge-base-article/
 │   └── topic-intro/
 ├── statusline/
-│   └── statusline.sh  # Advanced status line script
+│   └── statusline.sh     # Advanced status line script
 ├── lib/
-│   └── common.sh      # Shared shell utilities
-├── link-claude-md.sh  # Install script (links everything)
-├── link-skills.sh     # Install script (links individual skills)
-└── link-statusline.sh # Install script (links status line)
+│   └── common.sh         # Shared shell utilities
+├── install-claude-md.sh  # Install script (copies everything)
+├── install-skills.sh     # Install script (copies individual skills)
+└── install-statusline.sh # Install script (copies status line)
 ```
 
 ## Installation
 
-### Link everything
+### Install everything
 
-Symlinks `CLAUDE.md`, `skills/`, and `docs/` into `~/.claude/`:
+Copies `CLAUDE.md`, `skills/`, and `docs/` into `~/.claude/`:
 
 ```bash
-./link-claude-md.sh
+./install-claude-md.sh
 ```
 
-### Link individual skills
+### Install individual skills
 
-Symlinks each skill directory into `~/.claude/skills/<name>`, allowing skills from multiple repos to coexist:
+Copies each skill directory into `~/.claude/skills/<name>`, allowing skills from multiple repos to coexist:
 
 ```bash
-./link-skills.sh
+./install-skills.sh
 ```
 
 ### Install status line
 
-Symlinks `statusline.sh` into `~/.claude/` and adds `statusLine` config to `settings.json`:
+Copies `statusline.sh` into `~/.claude/` and adds `statusLine` config to `settings.json`:
 
 ```bash
-./link-statusline.sh
+./install-statusline.sh
 ```
 
 ## Options
@@ -51,7 +51,7 @@ All scripts support the same flags:
 
 ```bash
 -n, --dry-run   # Preview changes without making them
--f, --force     # Backup and overwrite existing files
+-f, --force     # Replace existing files without prompting
 -h, --help      # Show help
 ```
 

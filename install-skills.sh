@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# link-skills.sh - Install skills individually via symlinks
+# install-skills.sh - Install skills individually by copying
 #
 # Finds all skill directories (containing SKILL.md) under skills/ and
-# symlinks each one into ~/.claude/skills/<skill-name>.
+# copies each one into ~/.claude/skills/<skill-name>.
 #
 # This allows skills from multiple repos to coexist in ~/.claude/skills/.
 #
@@ -22,22 +22,24 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Install skills by symlinking each skill directory into ~/.claude/skills/:
+Install skills by copying each skill directory into ~/.claude/skills/:
 
-    skills/<name>/SKILL.md  ->  ~/.claude/skills/<name>
+    skills/<name>/  ->  ~/.claude/skills/<name>
 
 Finds all directories containing a SKILL.md under this repo's skills/ folder
-and creates individual symlinks, allowing skills from multiple repos to coexist.
+and copies them, allowing skills from multiple repos to coexist.
+
+If a target already exists, you will be prompted before replacing it.
 
 Options:
     -h, --help      Show this help message
-    -f, --force     Overwrite existing symlinks (backs up non-symlink files first)
+    -f, --force     Replace existing skills without prompting
     -n, --dry-run   Show what would be done without making changes
 
 Examples:
     $(basename "$0")           # Install all skills
     $(basename "$0") -n        # Preview what would be installed
-    $(basename "$0") -f        # Force reinstall (backup existing)
+    $(basename "$0") -f        # Force reinstall without prompting
 
 Environment:
     CLAUDE_HOME    Override default ~/.claude location (default: ~/.claude)
@@ -75,31 +77,24 @@ main() {
         die "Skills directory not found: $GLOBAL_SKILLS_DIR"
     fi
 
-    log_info "Linking skills into: $SKILLS_TARGET"
+    log_info "Installing skills into: $SKILLS_TARGET"
     log_info "Source: $GLOBAL_SKILLS_DIR"
     echo ""
 
-    # If skills target is a symlink (e.g. from link-claude-md.sh), warn
+    # If skills target is a symlink (e.g. from install-claude-md.sh), replace with real dir
     if [[ -L "$SKILLS_TARGET" ]]; then
         log_warn "$SKILLS_TARGET is a symlink to $(readlink "$SKILLS_TARGET")"
-        log_warn "Individual skill linking requires a real directory, not a symlink."
-        log_warn "Remove the symlink first or use --force to replace it."
-        if [[ "$force" == true ]]; then
-            if [[ "$dry_run" == true ]]; then
-                log_info "[DRY-RUN] Would remove symlink and create directory: $SKILLS_TARGET"
-            else
-                rm "$SKILLS_TARGET"
-                mkdir -p "$SKILLS_TARGET"
-                log_info "Replaced symlink with directory: $SKILLS_TARGET"
-            fi
+        if [[ "$dry_run" == true ]]; then
+            log_info "[DRY-RUN] Would remove symlink and create directory: $SKILLS_TARGET"
         else
-            die "Cannot link individual skills into a symlinked directory."
+            rm "$SKILLS_TARGET"
+            mkdir -p "$SKILLS_TARGET"
+            log_info "Replaced symlink with directory: $SKILLS_TARGET"
         fi
     else
         ensure_dir "$SKILLS_TARGET" "$dry_run"
     fi
 
-    local failed=0
     local count=0
 
     # Find all directories containing SKILL.md
@@ -109,9 +104,7 @@ main() {
         local skill_name
         skill_name="$(basename "$skill_dir")"
 
-        if ! create_symlink "$skill_dir" "${SKILLS_TARGET}/${skill_name}" "$force" "$dry_run"; then
-            ((failed++)) || true
-        fi
+        install_copy "$skill_dir" "${SKILLS_TARGET}/${skill_name}" "$force" "$dry_run"
         ((count++)) || true
     done < <(find "$GLOBAL_SKILLS_DIR" -name SKILL.md -type f | sort)
 
@@ -122,14 +115,10 @@ main() {
 
     echo ""
 
-    if [[ $failed -gt 0 ]]; then
-        die "Failed to link $failed of $count skill(s). Use --force to overwrite."
-    fi
-
     if [[ "$dry_run" == false ]]; then
-        log_success "Linked $count skill(s)"
+        log_success "Installed $count skill(s)"
     else
-        log_info "[DRY-RUN] Would link $count skill(s)"
+        log_info "[DRY-RUN] Would install $count skill(s)"
     fi
 }
 

@@ -34,9 +34,9 @@ die() {
     exit 1
 }
 
-# Create a symlink, handling existing files/links
+# Copy a file or directory to target, prompting if target already exists
 # Args: source target force dry_run
-create_symlink() {
+install_copy() {
     local source="$1"
     local target="$2"
     local force="$3"
@@ -44,51 +44,43 @@ create_symlink() {
     local source_name
     source_name="$(basename "$source")"
 
-    if [[ -L "$target" ]]; then
-        local current_target
-        current_target="$(readlink "$target")"
-
-        if [[ "$current_target" == "$source" ]]; then
-            log_success "$source_name: symlink already correct"
-            return 0
+    if [[ -L "$target" || -e "$target" ]]; then
+        if [[ -L "$target" ]]; then
+            log_warn "$source_name: symlink exists at $target -> $(readlink "$target")"
+        else
+            log_warn "$source_name: already exists at $target"
         fi
-
-        log_warn "$source_name: symlink exists but points to: $current_target"
 
         if [[ "$force" == true ]]; then
             if [[ "$dry_run" == true ]]; then
-                log_info "[DRY-RUN] Would remove existing symlink: $target"
+                log_info "[DRY-RUN] Would replace: $target"
             else
-                rm "$target"
+                rm -rf "$target"
             fi
+        elif [[ "$dry_run" == true ]]; then
+            log_info "[DRY-RUN] Would ask to replace: $target"
         else
-            log_error "$source_name: use --force to overwrite"
-            return 1
-        fi
-
-    elif [[ -e "$target" ]]; then
-        log_warn "$source_name: file/directory already exists at $target"
-
-        if [[ "$force" == true ]]; then
-            local backup="${target}.backup.$(date +%Y%m%d_%H%M%S)"
-
-            if [[ "$dry_run" == true ]]; then
-                log_info "[DRY-RUN] Would backup to: $backup"
+            printf "${YELLOW}Replace %s? [y/N]${NC} " "$target"
+            local reply
+            read -r reply
+            if [[ "$reply" =~ ^[Yy]$ ]]; then
+                rm -rf "$target"
             else
-                mv "$target" "$backup"
-                log_info "$source_name: backed up to $backup"
+                log_info "$source_name: skipped"
+                return 0
             fi
-        else
-            log_error "$source_name: use --force to backup and replace"
-            return 1
         fi
     fi
 
     if [[ "$dry_run" == true ]]; then
-        log_info "[DRY-RUN] Would create: $target -> $source"
+        log_info "[DRY-RUN] Would copy: $source -> $target"
     else
-        ln -s "$source" "$target"
-        log_success "$source_name: linked"
+        if [[ -d "$source" ]]; then
+            cp -R "$source" "$target"
+        else
+            cp "$source" "$target"
+        fi
+        log_success "$source_name: installed"
     fi
 
     return 0

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# link-claude-md.sh - Install global Claude configuration via symlinks
+# install-claude-md.sh - Install global Claude configuration by copying
 #
-# Symlinks CLAUDE.md, skills/, and docs/ into ~/.claude/
+# Copies CLAUDE.md, skills/, and docs/ into ~/.claude/
 #
 # Run with --help for full usage information.
 #
@@ -20,21 +20,23 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [options]
 
-Install global Claude configuration by symlinking this repo's files into ~/.claude/:
+Install global Claude configuration by copying this repo's files into ~/.claude/:
 
     CLAUDE.md  ->  ~/.claude/CLAUDE.md
     skills/    ->  ~/.claude/skills
     docs/      ->  ~/.claude/docs
 
+If a target already exists, you will be prompted before replacing it.
+
 Options:
     -h, --help      Show this help message
-    -f, --force     Overwrite existing files (backs up first)
+    -f, --force     Replace existing files without prompting
     -n, --dry-run   Show what would be done without making changes
 
 Examples:
     $(basename "$0")           # Install configuration
     $(basename "$0") -n        # Preview what would be installed
-    $(basename "$0") -f        # Force reinstall (backup existing)
+    $(basename "$0") -f        # Force reinstall without prompting
 
 Environment:
     CLAUDE_HOME    Override default ~/.claude location (default: ~/.claude)
@@ -74,37 +76,25 @@ main() {
 
     ensure_dir "$CLAUDE_HOME" "$dry_run"
 
-    local failed=0
-
-    # Link CLAUDE.md
+    # Copy CLAUDE.md
     if [[ -f "$GLOBAL_CLAUDE_MD" ]]; then
-        if ! create_symlink "$GLOBAL_CLAUDE_MD" "${CLAUDE_HOME}/CLAUDE.md" "$force" "$dry_run"; then
-            ((failed++)) || true
-        fi
+        install_copy "$GLOBAL_CLAUDE_MD" "${CLAUDE_HOME}/CLAUDE.md" "$force" "$dry_run"
     else
         log_warn "CLAUDE.md not found: $GLOBAL_CLAUDE_MD"
     fi
 
-    # Link skills directory
+    # Copy skills directory
     if [[ -d "$GLOBAL_SKILLS_DIR" ]]; then
-        if ! create_symlink "$GLOBAL_SKILLS_DIR" "${CLAUDE_HOME}/skills" "$force" "$dry_run"; then
-            ((failed++)) || true
-        fi
+        install_copy "$GLOBAL_SKILLS_DIR" "${CLAUDE_HOME}/skills" "$force" "$dry_run"
     else
         log_warn "Skills directory not found: $GLOBAL_SKILLS_DIR"
     fi
 
-    # Link docs directory
+    # Copy docs directory
     if [[ -d "$GLOBAL_DOCS_DIR" ]]; then
-        if ! create_symlink "$GLOBAL_DOCS_DIR" "${CLAUDE_HOME}/docs" "$force" "$dry_run"; then
-            ((failed++)) || true
-        fi
+        install_copy "$GLOBAL_DOCS_DIR" "${CLAUDE_HOME}/docs" "$force" "$dry_run"
     else
         log_warn "Docs directory not found: $GLOBAL_DOCS_DIR"
-    fi
-
-    if [[ $failed -gt 0 ]]; then
-        die "Failed to create $failed symlink(s). Use --force to overwrite."
     fi
 
     if [[ "$dry_run" == false ]]; then

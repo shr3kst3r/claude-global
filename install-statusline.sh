@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# link-statusline.sh - Install the Claude Code status line
+# install-statusline.sh - Install the Claude Code status line
 #
-# Symlinks statusline.sh into ~/.claude/ and configures settings.json.
+# Copies statusline.sh into ~/.claude/ and configures settings.json.
 #
 # Run with --help for full usage information.
 #
@@ -21,18 +21,20 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Install the Claude Code status line by:
-  1. Symlinking statusline.sh into ~/.claude/
+  1. Copying statusline.sh into ~/.claude/
   2. Adding statusLine config to ~/.claude/settings.json
+
+If the target already exists, you will be prompted before replacing it.
 
 Options:
     -h, --help      Show this help message
-    -f, --force     Overwrite existing statusline symlink
+    -f, --force     Replace existing files without prompting
     -n, --dry-run   Show what would be done without making changes
 
 Examples:
     $(basename "$0")           # Install status line
     $(basename "$0") -n        # Preview installation
-    $(basename "$0") -f        # Force reinstall
+    $(basename "$0") -f        # Force reinstall without prompting
 
 Environment:
     CLAUDE_HOME    Override default ~/.claude location (default: ~/.claude)
@@ -124,10 +126,8 @@ main() {
 
     ensure_dir "$CLAUDE_HOME" "$dry_run"
 
-    # 1. Symlink the script
-    if ! create_symlink "$STATUSLINE_SRC" "$STATUSLINE_TARGET" "$force" "$dry_run"; then
-        die "Failed to create symlink. Use --force to overwrite."
-    fi
+    # 1. Copy the script
+    install_copy "$STATUSLINE_SRC" "$STATUSLINE_TARGET" "$force" "$dry_run"
 
     # 2. Configure settings.json
     update_settings "$dry_run"

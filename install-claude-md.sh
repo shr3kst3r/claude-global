@@ -83,9 +83,15 @@ main() {
         log_warn "CLAUDE.md not found: $GLOBAL_CLAUDE_MD"
     fi
 
-    # Copy skills directory
+    # Copy each skill individually (preserves user-added skills)
     if [[ -d "$GLOBAL_SKILLS_DIR" ]]; then
-        install_copy "$GLOBAL_SKILLS_DIR" "${CLAUDE_HOME}/skills" "$force" "$dry_run"
+        ensure_dir "${CLAUDE_HOME}/skills" "$dry_run"
+        for skill_dir in "$GLOBAL_SKILLS_DIR"/*/; do
+            [[ -d "$skill_dir" ]] || continue
+            local skill_name
+            skill_name="$(basename "$skill_dir")"
+            install_copy "$skill_dir" "${CLAUDE_HOME}/skills/${skill_name}" "$force" "$dry_run"
+        done
     else
         log_warn "Skills directory not found: $GLOBAL_SKILLS_DIR"
     fi

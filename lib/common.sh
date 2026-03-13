@@ -45,11 +45,32 @@ install_copy() {
     source_name="$(basename "$source")"
 
     if [[ -L "$target" || -e "$target" ]]; then
+        # Check if contents are identical
+        local has_diff=false
+        if [[ -d "$source" ]]; then
+            diff -rq "$target" "$source" &>/dev/null || has_diff=true
+        else
+            diff -q "$target" "$source" &>/dev/null || has_diff=true
+        fi
+
+        if [[ "$has_diff" == false ]]; then
+            log_success "$source_name: up to date"
+            return 0
+        fi
+
         if [[ -L "$target" ]]; then
             log_warn "$source_name: symlink exists at $target -> $(readlink "$target")"
         else
             log_warn "$source_name: already exists at $target"
         fi
+
+        # Show colored diff
+        if [[ -d "$source" ]]; then
+            diff -r --color=always "$target" "$source" 2>/dev/null || true
+        else
+            diff --color=always "$target" "$source" 2>/dev/null || true
+        fi
+        echo ""
 
         if [[ "$force" == true ]]; then
             if [[ "$dry_run" == true ]]; then

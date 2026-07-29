@@ -367,13 +367,19 @@ usage_bar() {
     echo "${bar}"
 }
 
-# Format ISO 8601 timestamp to countdown string
+# Format a reset timestamp to a countdown string.
+# Accepts Unix epoch seconds (what Claude Code's statusline JSON provides) or
+# an ISO 8601 string (what the OAuth usage endpoint provides).
 format_countdown() {
     local resets_at=$1
     local now_epoch reset_epoch diff_sec
 
+    # Already epoch seconds? Use directly — no date(1) parsing needed.
+    if [[ "$resets_at" =~ ^[0-9]+$ ]]; then
+        reset_epoch=$resets_at
+        now_epoch=$(date +%s)
     # Parse the reset timestamp to epoch seconds
-    if command -v gdate &>/dev/null; then
+    elif command -v gdate &>/dev/null; then
         reset_epoch=$(gdate -d "$resets_at" +%s 2>/dev/null || echo 0)
         now_epoch=$(gdate +%s)
     elif date -d "" &>/dev/null 2>&1; then
@@ -412,14 +418,19 @@ format_countdown() {
     fi
 }
 
-# Try native rate_limits from statusline JSON first
-five_hour_pct=$(jval_num '.rate_limits.session.used_percentage // .rate_limits.five_hour.utilization')
-five_hour_reset=$(jval '.rate_limits.session.resets_at // .rate_limits.five_hour.resets_at')
-weekly_pct=$(jval_num '.rate_limits.weekly.used_percentage // .rate_limits.seven_day.utilization')
-weekly_reset=$(jval '.rate_limits.weekly.resets_at // .rate_limits.seven_day.resets_at')
+# Try native rate_limits from the statusline JSON first.
+# Documented shape: .rate_limits.{five_hour,seven_day}.{used_percentage,resets_at}
+# used_percentage is a float (e.g. 23.5) -> truncate, since [[ -gt ]] is integer-only.
+# resets_at is Unix epoch seconds, NOT ISO 8601.
+five_hour_pct=$(jval '.rate_limits.five_hour.used_percentage' | cut -d. -f1)
+five_hour_reset=$(jval '.rate_limits.five_hour.resets_at')
+weekly_pct=$(jval '.rate_limits.seven_day.used_percentage' | cut -d. -f1)
+weekly_reset=$(jval '.rate_limits.seven_day.resets_at')
 
-# If not in JSON, try cached API data
-if [[ "$five_hour_pct" -eq 0 && -z "$five_hour_reset" ]]; then
+# If the percentages aren't in the JSON, try cached API data.
+# Gate on the percentage only: resets_at can be present while used_percentage
+# is absent, and keying off the timestamp would skip this fallback entirely.
+if [[ -z "$five_hour_pct" ]]; then
     cache_fresh=false
 
     if [[ -f "$USAGE_CACHE" ]]; then
@@ -442,6 +453,14 @@ if [[ "$five_hour_pct" -eq 0 && -z "$five_hour_reset" ]]; then
         creds_json=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || echo "")
         if [[ -n "$creds_json" ]]; then
             access_token=$(echo "$creds_json" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
+            # Skip the request if the stored token is already expired. This script
+            # cannot refresh it, so calling anyway just burns --max-time on every
+            # render for a guaranteed 401.
+            token_expired=$(echo "$creds_json" | jq -r \
+                '.claudeAiOauth.expiresAt as $e | if $e and (($e/1000) < now) then "yes" else "no" end' 2>/dev/null)
+            if [[ "$token_expired" == "yes" ]]; then
+                access_token=""
+            fi
             if [[ -n "$access_token" ]]; then
                 curl -sf --max-time 3 \
                     -H "Authorization: Bearer ${access_token}" \
@@ -468,7 +487,9 @@ usage_line=""
 five_hour_pct=${five_hour_pct:-0}
 weekly_pct=${weekly_pct:-0}
 
-if [[ "$five_hour_pct" -gt 0 || -n "${five_hour_reset:-}" ]]; then
+# Render only when we have a real percentage. Rendering off a bare resets_at
+# would print a hardcoded-looking "0%" that never moves.
+if [[ "$five_hour_pct" -gt 0 ]]; then
     five_bar=$(usage_bar "$five_hour_pct")
     five_color=$(usage_color "$five_hour_pct")
     five_countdown=""
